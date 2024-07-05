@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"> <!-- Add charset attribute -->
+    <title>Socket.io</title>
+    <style>
+        body {
+            margin: 0;
+            padding-bottom: 3rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        #top-bar {
+            width: 100%;
+            background: #333;
+            color: #fff;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1rem;
+            box-sizing: border-box;
+            position: sticky; /* Tambahkan properti position: sticky */
+            top: 0; /* Atur posisi sticky ke bagian atas layar */
+            z-index: 1000; /* Atur z-index untuk memastikan bagian atas tetap di atas konten lainnya */
+        }
+        
+        
+        #top-bar .user-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        #top-bar .user-info img {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+        
+        #messages {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        
+        #messages > li {
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        #messages > li:nth-child(odd) {
+            background: #efefef;
+        }
+        
+        .message.self {
+            justify-content: flex-end;
+        }
+        
+        .message.self .content {
+            background-color: #d1e7dd;
+        }
+        
+        .message .content {
+            background-color: #f1f1f1;
+            padding: 0.5rem 1rem;
+            border-radius: 1rem;
+            max-width: 70%;
+        }
+        
+        .message .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.5rem;
+            background-color: #ccc;
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .message.self .avatar {
+            margin-left: 0.5rem;
+            margin-right: 0;
+        }
+        
+        #form {
+            background: rgba(0, 0, 0, 0.15);
+            padding: 0.25rem;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            height: 3rem;
+            box-sizing: border-box;
+            backdrop-filter: blur(10px);
+        }
+        
+        #input {
+            border: none;
+            padding: 0 1rem;
+            flex-grow: 1;
+            border-radius: 2rem;
+            margin: 0.25rem;
+        }
+        
+        #input:focus {
+            outline: none;
+        }
+        
+        #form > button {
+            background: #40b6ff;
+            border: none;
+            padding: 1rem;
+            margin: 0.25rem;
+            border-radius: 3px;
+            outline: none;
+            color: #fff;
+        }
+        
+        #toggle-btn {
+            background: #40b6ff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 3px;
+            outline: none;
+            color: #fff;
+            cursor: pointer;
+            margin-left: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <h2>Chat Application</h2>
+        <div class="user-info">
+            <img src="https://via.placeholder.com/30" alt="User Icon">
+            <span id="username">John Doe</span>
+            <button id="toggle-btn">Disconnect</button>
+        </div>
+    </div>
+
+    <ul id="messages"></ul>
+
+    <form id="form" action="">
+        <input id="input" autocomplete="off" />
+        <button>Send</button>
+    </form>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const username = prompt("Please enter your name");
+        const avatar = '';  // URL to user's avatar or leave empty for initials
+
+        document.getElementById('username').textContent = username;
+
+        const socket = io({
+            auth: {
+                username: username,
+                avatar: avatar,
+                serverOffset: 0
+            }
+        });
+
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const messages = document.getElementById('messages');
+        const toggleButton = document.getElementById('toggle-btn');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (input.value) {
+                const msg = input.value;
+                addMessage(msg, 'self', username, avatar);
+                socket.emit('chat message', msg);
+                input.value = '';
+            }
+        });
+
+        socket.on('chat message', (msg, serverOffset, sender, senderAvatar) => {
+            addMessage(msg, sender === username ? 'self' : '', sender, senderAvatar);
+            socket.auth.serverOffset = serverOffset;
+        });
+
+        toggleButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (socket.connected) {
+                toggleButton.innerText = 'Connect';
+                socket.disconnect();
+            } else {
+                toggleButton.innerText = 'Disconnect';
+                socket.connect();
+            }
+        });
+
+        function addMessage(msg, className = '', sender, senderAvatar) {
+            const item = document.createElement('li');
+            item.classList.add('message');
+            if (className) item.classList.add(className);
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.classList.add('avatar');
+
+            if (senderAvatar) {
+                const img = document.createElement('img');
+                img.src = senderAvatar;
+                avatarDiv.appendChild(img);
+            } else {
+                const initial = sender.charAt(0).toUpperCase();
+                avatarDiv.textContent = initial;
+                avatarDiv.style.backgroundColor = getColor(initial);
+            }
+
+            const content = document.createElement('div');
+            content.classList.add('content');
+            content.textContent = msg;
+
+            item.appendChild(avatarDiv);
+            item.appendChild(content);
+            messages.appendChild(item);
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+
+        function getColor(initial) {
+            const colors = ['#ff6f61', '#6b5b95', '#88b04b', '#f7cac9', '#92a8d1', '#955251'];
+            const index = initial.charCodeAt(0) % colors.length;
+            return colors[index];
+        }
+    </script>
+</body>
+</html>
+
